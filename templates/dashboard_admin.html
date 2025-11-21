@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Admin Dashboard</h2>
+
+<div class="grid2">
+  <!-- Recent bookings -->
+  <div class="card">
+    <h3>Recent Bookings</h3>
+    {% if not bookings %}
+      <div class="muted">No bookings yet.</div>
+    {% else %}
+      <table class="table responsive">
+        <thead><tr>
+          <th>ID</th><th>User</th><th>Driver</th><th>Destination</th><th>Status</th><th>When</th>
+        </tr></thead>
+        <tbody>
+        {% for b in bookings %}
+          <tr>
+            <td data-th="ID">#{{ b[0] }}</td>
+            <td data-th="User">{{ b[1] or '—' }}</td>
+            <td data-th="Driver">{{ b[2] or '—' }}</td>
+            <td data-th="Destination">{{ b[3] or '—' }}</td>
+            <td data-th="Status"><span class="badge">{{ b[4] }}</span></td>
+            <td data-th="Time"><span class="badge" data-ts="{{ b[5] }}">{{ b[5] }}</span></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+
+  <!-- Users & KYC -->
+  <div class="card">
+    <h3>Users & KYC</h3>
+    {% if not kycs and not users %}
+      <div class="muted">No users yet.</div>
+    {% else %}
+      <table class="table responsive" id="admin-users">
+        <thead><tr>
+          <th>ID</th><th>Name</th><th>Role</th><th>Verified</th><th>KYC</th><th>Actions</th>
+        </tr></thead>
+        <tbody>
+        {% for u in users %}
+          <tr id="urow-{{ u[0] }}">
+            <td data-th="ID">#{{ u[0] }}</td>
+            <td data-th="Name"><a class="link" href="/admin/user/{{ u[0] }}">{{ u[1] }}</a></td>
+            <td data-th="Role"><span class="badge">{{ u[2] }}</span></td>
+            <td data-th="Verified">
+              <span class="dot {{ 'on' if u[3] else 'off' }}"></span>
+              {{ 'Yes' if u[3] else 'No' }}
+            </td>
+            <td data-th="KYC">
+              {% set rec = None %}
+              {% for k in kycs %}
+                {% if k[0] == u[0] %}{% set rec = k %}{% endif %}
+              {% endfor %}
+              {% if rec %}
+                <div class="stack">
+                  {% if rec[6] %}<a class="link" href="/{{ rec[6] }}" target="_blank">Citizenship</a>{% endif %}
+                  {% if rec[7] %}<a class="link" href="/{{ rec[7] }}" target="_blank">License</a>{% endif %}
+                  {% if rec[8] %}<a class="link" href="/{{ rec[8] }}" target="_blank">Bluebook</a>{% endif %}
+                  {% if rec[9] %}<a class="link" href="/{{ rec[9] }}" target="_blank">Ambulance Photo</a>{% endif %}
+                </div>
+              {% else %}
+                <span class="muted">—</span>
+              {% endif %}
+            </td>
+            <td data-th="Actions" style="display:flex; gap:6px; flex-wrap:wrap">
+              {% if not u[3] %}
+              <button class="btn btn-ok" data-verify="{{ u[0] }}">Verify</button>
+              <button class="btn btn-danger" data-reject="{{ u[0] }}">Reject</button>
+              {% else %}
+              <span class="badge">Verified</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <h3>Top Drivers</h3>
+  {% if not top_drivers %}
+    <div class="muted">No reviews yet.</div>
+  {% else %}
+    <table class="table responsive">
+      <thead><tr>
+        <th>ID</th><th>Name</th><th>Avg ★</th><th>Reviews</th>
+      </tr></thead>
+      <tbody>
+      {% for t in top_drivers %}
+        <tr>
+          <td data-th="ID">#{{ t[0] }}</td>
+          <td data-th="Name">{{ t[1] }}</td>
+          <td data-th="Avg">{{ '%.2f'|format(t[2]) }}</td>
+          <td data-th="Count">{{ t[3] }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</div>
+
+<style>
+.grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
+@media (max-width: 980px){ .grid2 { grid-template-columns: 1fr; } }
+.dot { width:8px; height:8px; border-radius:999px; display:inline-block; vertical-align:middle; background:#999 }
+.dot.on { background:#10b981 } .dot.off { background:#ef4444 }
+.stack { display:flex; flex-direction:column; gap:4px }
+</style>
+
+<script>
+// Pretty times
+(function prettifyTS(){
+  document.querySelectorAll('[data-ts]').forEach(chip=>{
+    const iso=(chip.getAttribute('data-ts')||'').replace(' ','T');
+    const d=new Date(iso); if(!isNaN(d)) chip.textContent=d.toLocaleString();
+  });
+})();
+
+// AJAX verify/reject (no reload)
+document.querySelectorAll('[data-verify]').forEach(btn=>{
+  btn.addEventListener('click', async ()=>{
+    const id = btn.getAttribute('data-verify');
+    const fd = new FormData(); // empty
+    const r = await fetch(`/admin/verify_user/${id}`, {method:'POST', body:fd});
+    if (r.redirected) location.href = r.url; // fallback
+    else { btn.closest('tr').querySelector('[data-th="Verified"]').innerHTML='<span class="dot on"></span> Yes'; btn.parentElement.innerHTML='<span class="badge">Verified</span>'; showToast('User verified'); }
+  });
+});
+document.querySelectorAll('[data-reject]').forEach(btn=>{
+  btn.addEventListener('click', async ()=>{
+    const id = btn.getAttribute('data-reject');
+    const reason = prompt('Reason for rejection:', 'Documents not clear');
+    if (reason===null) return;
+    const fd = new FormData(); fd.append('reason', reason);
+    const r = await fetch(`/admin/reject_user/${id}`, {method:'POST', body:fd});
+    if (r.redirected) location.href = r.url; else { showToast('User rejected'); }
+  });
+});
+</script>
+{% endblock %}

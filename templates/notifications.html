@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Notifications</h2>
+<div class="card">
+  {% if not notes %}
+    <div class="muted">No notifications.</div>
+  {% else %}
+    <ul>
+      {% for n in notes %}
+        <li><strong>{{ n[1] }}</strong> — {{ n[2] }} <span class="muted">({{ n[4] }})</span> {% if n[3] %}✔{% else %}•{% endif %}</li>
+      {% endfor %}
+    </ul>
+    <form method="post" action="/api/notifications/mark_read" onsubmit="fetch(this.action,{method:'POST'}).then(()=>location.reload());return false;">
+      <button class="btn btn-ghost" type="submit">Mark all read</button>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}

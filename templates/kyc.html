@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>KYC Upload</h2>
+  <form method="post" enctype="multipart/form-data" class="grid">
+    {% if role == 'driver' %}
+      <div class="form-row">
+        <div>
+          <label>Driver License</label>
+          <input class="input" type="file" name="license_doc" accept="image/*,application/pdf">
+        </div>
+        <div>
+          <label>Bluebook</label>
+          <input class="input" type="file" name="bluebook_doc" accept="image/*,application/pdf">
+        </div>
+      </div>
+      <label>Ambulance Photo</label>
+      <input class="input" type="file" name="ambulance_photo" accept="image/*">
+      <p class="muted">Admin will review your documents before you can go online.</p>
+    {% else %}
+      <label>Citizenship</label>
+      <input class="input" type="file" name="citizenship_doc" accept="image/*,application/pdf">
+      <p class="muted">Upload clear photo or PDF.</p>
+    {% endif %}
+    <button class="btn" type="submit">Upload</button>
+  </form>
+</div>
+{% endblock %}

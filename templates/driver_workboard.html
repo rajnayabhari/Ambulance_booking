@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 style="margin-bottom:12px">🧭 Driver Workboard</h2>
+
+<!-- Active trips (Accepted) -->
+<div class="card" style="margin-bottom:16px">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+    <h3 style="margin:0">Active Trips</h3>
+    <a class="btn btn-ghost" href="/driver/trips">View history</a>
+  </div>
+  {% if not active_rows %}
+    <div class="muted" style="margin-top:8px">No active trips.</div>
+  {% else %}
+    <table class="table" style="margin-top:10px">
+      <thead><tr>
+        <th>ID</th><th>User</th><th>Phone</th><th>Pickup</th><th>Destination</th><th>When</th><th>Actions</th>
+      </tr></thead>
+      <tbody>
+        {% for r in active_rows %}
+        <!-- r = (id, user_name, phone_no, pickup, dest, when, status) -->
+        <tr>
+          <td>#{{ r[0] }}</td>
+          <td>{{ r[1] }}</td>
+          <td><a class="badge" href="tel:{{ r[2] }}">{{ r[2] }}</a></td>
+          <td>{{ r[3] or 'GPS' }}</td>
+          <td>{{ r[4] }}</td>
+          <td><span class="badge" data-ts="{{ r[5] }}">{{ r[5] }}</span></td>
+          <td style="display:flex;gap:8px;flex-wrap:wrap">
+            <a class="btn" href="/track/{{ r[0] }}">Track / Navigate</a>
+            <form method="post" action="/driver/complete/{{ r[0] }}">
+              <button class="btn btn-ok">Complete</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</div>
+
+<!-- Pending requests -->
+<div class="card">
+  <h3 style="margin:0 0 8px 0">Pending Requests</h3>
+  {% if not pending_rows %}
+    <div class="muted">No pending requests.</div>
+  {% else %}
+    <table class="table" style="margin-top:10px">
+      <thead><tr>
+        <th>ID</th><th>User</th><th>Phone</th><th>Pickup</th><th>Destination</th><th>When</th><th>Actions</th>
+      </tr></thead>
+      <tbody>
+        {% for r in pending_rows %}
+        <!-- r = (id, user_name, phone_no, pickup, dest, when, status) -->
+        <tr>
+          <td>#{{ r[0] }}</td>
+          <td>{{ r[1] }}</td>
+          <td><a class="badge" href="tel:{{ r[2] }}">{{ r[2] }}</a></td>
+          <td>{{ r[3] or 'GPS' }}</td>
+          <td>{{ r[4] }}</td>
+          <td><span class="badge" data-ts="{{ r[5] }}">{{ r[5] }}</span></td>
+          <td style="display:flex;gap:8px;flex-wrap:wrap">
+            <a class="btn" href="/track/{{ r[0] }}">View Map</a>
+            <form method="post" action="/driver/accept/{{ r[0] }}">
+              <button class="btn btn-ok" {% if not session.get('driver_is_verified') %}disabled{% endif %}>Accept</button>
+            </form>
+            <form method="post" action="/driver/reject/{{ r[0] }}">
+              <button class="btn btn-danger">Reject</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</div>
+
+<script>
+(function prettifyTS(){
+  const chips = document.querySelectorAll('[data-ts]');
+  chips.forEach(chip=>{
+    const iso = (chip.getAttribute('data-ts')||'').replace(' ','T');
+    const d = new Date(iso);
+    if (!isNaN(d)) chip.textContent = d.toLocaleString(undefined,{day:'2-digit',month:'short',hour:'numeric',minute:'2-digit'});
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 style="margin-bottom:12px">🚑 Driver Dashboard</h2>
+
+<div class="grid grid-3" style="margin-bottom:12px">
+  <div class="card kpi"><div class="num">{{ "%.1f"|format(avg_star or 0) }}</div><div class="tag">Avg rating</div></div>
+  <div class="card kpi"><div class="num">{{ total_reviews or 0 }}</div><div class="tag">Total reviews</div></div>
+  <div class="card">
+    <h3 style="margin:0 0 8px 0">Status</h3>
+    <form method="post" action="/driver/set_status" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <select name="state" class="input" style="max-width:180px">
+        <option value="online" {% if session.get('driver_is_online') %}selected{% endif %}>Online</option>
+        <option value="offline" {% if not session.get('driver_is_online') %}selected{% endif %}>Offline</option>
+      </select>
+      <button class="btn" type="submit">Update</button>
+      {% if not session.get('driver_is_verified') %}
+        <span class="badge">Not verified</span>
+      {% else %}
+        <span class="badge">Verified</span>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+<!-- Recent trips -->
+<div class="card" style="margin-bottom:16px">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+    <h3 style="margin:0">Recent Trips</h3>
+    <a class="btn btn-ghost" href="/driver/trips">View all</a>
+  </div>
+
+  {% if not trips %}
+    <div class="muted" style="margin-top:8px">No trips yet.</div>
+  {% else %}
+    <table class="table" style="margin-top:10px">
+      <thead><tr><th>ID</th><th>User</th><th>Destination</th><th>Status</th><th>When</th></tr></thead>
+      <tbody>
+        {% for t in trips %}
+        <tr>
+          <td>#{{ t[0] }}</td>
+          <td>{{ t[1] }}</td>
+          <td>{{ t[2] }}</td>
+          <td>
+            {% if t[3] == 'Accepted' %}
+              <span class="badge">In progress</span>
+            {% elif t[3] == 'Completed' %}
+              <span class="badge">Completed</span>
+            {% else %}
+              <span class="badge">Pending</span>
+            {% endif %}
+          </td>
+          <td><span class="badge" data-ts="{{ t[4] }}">{{ t[4] }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</div>
+
+<!-- Recent reviews -->
+<div class="card">
+  <h3 style="margin:0 0 8px 0">Recent Reviews</h3>
+  {% if not reviews %}
+    <div class="muted">No reviews yet.</div>
+  {% else %}
+    <ul style="list-style:none;margin:10px 0 0 0;padding:0;display:grid;gap:10px">
+      {% for r in reviews %}
+        <li style="padding:10px;border:1px solid #1a2456;border-radius:12px;background:#0f1530">
+          <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap">
+            <div>
+              <span class="stars">★</span> {{ r[0] }} — <strong>{{ r[2] }}</strong>
+              <div class="muted">{{ r[1] }}</div>
+            </div>
+            <span class="badge" data-ts="{{ r[3] }}">{{ r[3] }}</span>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</div>
+
+<!-- prettify timestamps like "13 Aug, 4:27 PM" -->
+<script>
+(function prettifyTS(){
+  const chips = document.querySelectorAll('[data-ts]');
+  chips.forEach(chip=>{
+    const raw = chip.getAttribute('data-ts');
+    const iso = raw.replace(' ', 'T');
+    const d = new Date(iso);
+    if (!isNaN(d)) {
+      chip.textContent = d.toLocaleString(undefined, { day:'2-digit', month:'short', hour:'numeric', minute:'2-digit' });
+    }
+  });
+})();
+</script>
+
+<style>
+@media (max-width: 900px){
+  .table th:nth-child(2), .table td:nth-child(2) { max-width: 220px; white-space: nowrap; overflow:hidden; text-overflow: ellipsis; }
+}
+</style>
+{% endblock %}

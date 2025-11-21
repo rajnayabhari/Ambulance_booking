@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Choose a Driver</h2>
+<p class="muted">Only verified, online drivers with fresh location & no active trip are shown.</p>
+
+{% if drivers|length == 0 %}
+  <div class="card">No verified drivers available right now. Please try again in a moment.</div>
+{% endif %}
+
+<div class="card-list">
+  {% for d in drivers %}
+  <div class="card">
+    <h3>{{ d.name }}</h3>
+    <div class="badge"><span class="stars">★</span> {{ '%.1f'|format(d.avg_rating) }} ({{ d.rating_count }})</div>
+    {% if d.dist_km is not none %}
+      <div class="badge">~ {{ d.dist_km }} km away</div>
+    {% endif %}
+    <div style="margin-top:10px">
+      <form method="post" action="/request_driver">
+        <input type="hidden" name="driver_id" value="{{ d.driver_id }}">
+        <input type="hidden" name="patient_name" value="{{ patient }}">
+        <input type="hidden" name="phone_no" value="{{ phone }}">
+        <input type="hidden" name="pickup_location" value="{{ pick }}">
+        <input type="hidden" name="destination" value="{{ dest }}">
+        <input type="hidden" name="user_lat" value="{{ user_lat }}">
+        <input type="hidden" name="user_lon" value="{{ user_lon }}">
+        <button class="btn" type="submit">Request {{ d.name }}</button>
+      </form>
+    </div>
+
+    {% if reviews.get(d.driver_id) %}
+      <div style="margin-top:12px">
+        <strong>Recent reviews</strong>
+        <ul style="padding-left:16px;margin:6px 0 0 0">
+          {% for r in reviews.get(d.driver_id)[:3] %}
+            <li><span class="stars">★</span> {{ r.stars }} — <em>{{ r.rater }}</em> {{ r.comment and '• ' ~ r.comment }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

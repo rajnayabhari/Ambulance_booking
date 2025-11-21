@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>My Trips (History)</h2>
+{% if not rows %}
+  <div class="card">No completed trips yet.</div>
+{% else %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>ID</th><th>User</th><th>Phone</th><th>Pickup</th><th>Destination</th><th>Status</th><th>When</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <!-- r = (id, user_name, phone, pickup, dest, status, when) -->
+      <tr>
+        <td>#{{ r[0] }}</td>
+        <td>{{ r[1] }}</td>
+        <td><a href="tel:{{ r[2] }}" class="badge">{{ r[2] }}</a></td>
+        <td>{{ r[3] or 'GPS' }}</td>
+        <td>{{ r[4] }}</td>
+        <td><span class="badge">Completed</span></td>
+        <td><span class="badge" data-ts="{{ r[6] }}">{{ r[6] }}</span></td>
+        <td><!-- no actions for completed history --></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+
+<script>
+(function prettifyTS(){
+  const chips = document.querySelectorAll('[data-ts]');
+  chips.forEach(chip=>{
+    const iso = (chip.getAttribute('data-ts')||'').replace(' ','T');
+    const d = new Date(iso);
+    if (!isNaN(d)) chip.textContent = d.toLocaleString(undefined,{day:'2-digit',month:'short',hour:'numeric',minute:'2-digit'});
+  });
+})();
+</script>
+{% endblock %}

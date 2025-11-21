@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 style="margin-bottom:12px">👤 User Dashboard</h2>
+
+<!-- RECENT TRIPS -->
+<div class="card" style="margin-bottom:16px">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+    <h3 style="margin:0">Recent Trips</h3>
+    <a class="btn btn-ghost" href="/mybookings">View all</a>
+  </div>
+
+  {% if not trips %}
+    <div class="muted" style="margin-top:8px">No trips yet. <a href="/book">Book your first ride</a>.</div>
+  {% else %}
+    <table class="table" style="margin-top:10px">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Driver</th>
+          <th>Destination</th>
+          <th>Status</th>
+          <th>When</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in trips %}
+        <tr>
+          <td>#{{ t[0] }}</td>
+          <td>{{ t[1] or "—" }}</td>
+          <td>{{ t[2] }}</td>
+          <td>
+            {% if t[3] == 'Accepted' %}
+              <span class="badge">In progress</span>
+            {% elif t[3] == 'Completed' %}
+              <span class="badge">Completed</span>
+            {% else %}
+              <span class="badge">Pending</span>
+            {% endif %}
+          </td>
+          <td>
+            <!-- Show a compact, readable time using the client's locale -->
+            <span class="badge" data-ts="{{ t[4] }}">{{ t[4] }}</span>
+          </td>
+          <td style="display:flex;gap:8px">
+            {% if t[3] == 'Accepted' %}
+              <a class="btn" href="/track/{{ t[0] }}">Track</a>
+            {% elif t[3] == 'Completed' %}
+              <a class="btn btn-ghost" href="/rate_driver/{{ t[0] }}">Rate</a>
+            {% else %}
+              <span class="badge">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</div>
+
+<!-- NOTIFICATIONS -->
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+    <h3 style="margin:0">🔔 Notifications</h3>
+    <form method="post" action="/api/notifications/mark_read"
+          onsubmit="fetch(this.action,{method:'POST'}).then(()=>location.reload());return false;">
+      <button class="btn btn-ghost" type="submit">Mark all read</button>
+    </form>
+  </div>
+
+  {% if not notifs %}
+    <div class="muted" style="margin-top:8px">Nothing new right now.</div>
+  {% else %}
+    <ul style="list-style:none;margin:10px 0 0 0;padding:0;display:grid;gap:10px">
+      {% for n in notifs %}
+      <li style="padding:10px;border:1px solid #1a2456;border-radius:12px;background:#0f1530">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap">
+          <div>
+            <strong>{{ n[1] }}</strong>
+            <span class="muted">— {{ n[2] }}</span>
+          </div>
+          <span class="badge" data-ts="{{ n[4] }}">{{ n[4] }}</span>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</div>
+
+<!-- Small JS: prettify timestamps to "13 Aug, 4:27 PM" per user locale -->
+<script>
+(function prettifyTS(){
+  const chips = document.querySelectorAll('[data-ts]');
+  chips.forEach(chip=>{
+    const raw = chip.getAttribute('data-ts');
+    // Try to parse both ISO and "YYYY-MM-DD HH:MM:SS.ssssss"
+    const iso = raw.replace(' ', 'T'); // good enough for display
+    const d = new Date(iso);
+    if (!isNaN(d)) {
+      const opts = { day:'2-digit', month:'short', hour:'numeric', minute:'2-digit' };
+      chip.textContent = d.toLocaleString(undefined, opts);
+    }
+  });
+})();
+</script>
+
+<!-- Responsive: stack everything (already), but add extra breathing space on narrow screens -->
+<style>
+@media (max-width: 900px){
+  .table th:nth-child(2), .table td:nth-child(2) { /* Driver column wraps nicely */
+    max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+}
+</style>
+{% endblock %}

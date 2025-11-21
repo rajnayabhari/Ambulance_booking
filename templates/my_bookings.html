@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>My Bookings</h2>
+{% if not rows %}
+  <div class="card">No bookings yet. <a href="/book">Create one</a>.</div>
+{% else %}
+  <table class="table">
+    <thead><tr><th>ID</th><th>Driver</th><th>Destination</th><th>Status</th><th>Time</th><th></th></tr></thead>
+    <tbody>
+      {% for b in rows %}
+      <tr>
+        <td>#{{ b[0] }}</td>
+        <td>{{ b[1] or '—' }}</td>
+        <td>{{ b[2] }}</td>
+        <td>{{ b[3] }}</td>
+        <td>{{ b[4] }}</td>
+        <td style="display:flex;gap:8px">
+          {% if b[3] == 'Accepted' %}
+            <a class="btn" href="/track/{{ b[0] }}">Track</a>
+          {% elif b[3] == 'Completed' %}
+            <a class="btn btn-ghost" href="/rate_driver/{{ b[0] }}">Rate</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+{% endblock %}

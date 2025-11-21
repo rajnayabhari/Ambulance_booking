@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>Book an Ambulance</h2>
+  <form method="post" class="grid">
+    <div class="form-row">
+      <div>
+        <label>Patient Name</label>
+        <input name="patient_name" class="input" required placeholder="Patient full name">
+      </div>
+      <div>
+        <label>Phone</label>
+        <input name="phone_no" class="input" required placeholder="98XXXXXXXX">
+      </div>
+    </div>
+    <div class="form-row">
+      <div>
+        <label>Pickup (optional, else GPS)</label>
+        <input name="pickup_location" class="input" placeholder="Address or leave blank to use GPS">
+      </div>
+      <div>
+        <label>Destination</label>
+        <input name="destination" class="input" required placeholder="Hospital name or address">
+      </div>
+    </div>
+    <input type="hidden" id="user_lat" name="user_lat">
+    <input type="hidden" id="user_lon" name="user_lon">
+
+    <div style="display:flex;gap:10px">
+      <button class="btn" type="submit">Next: Choose Driver</button>
+      <button class="btn btn-ghost" type="button" onclick="getGPS()">Use current location</button>
+    </div>
+  </form>
+</div>
+
+<script>
+function getGPS(){
+  if (!navigator.geolocation) return alert('Geolocation unavailable');
+  navigator.geolocation.getCurrentPosition(p=>{
+    document.getElementById('user_lat').value = p.coords.latitude;
+    document.getElementById('user_lon').value = p.coords.longitude;
+    alert('Location captured ✔');
+  }, _=>alert('Unable to get location'));
+}
+// auto-capture once
+getGPS();
+</script>
+{% endblock %}

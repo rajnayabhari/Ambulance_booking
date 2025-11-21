@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>User #{{ u[0] }} — {{ u[1] }} <span class="badge">{{ u[3] }}</span> {% if u[4] %}<span class="badge">Verified</span>{% endif %}</h2>
+
+<div class="grid grid-2">
+  <div class="card">
+    <h3>Profile</h3>
+    <p>Email: {{ u[2] }}</p>
+    <p>Role: {{ u[3] }}</p>
+    <p>KYC Role: {{ u[5] or '—' }}</p>
+
+    <div style="display:flex;gap:8px">
+      <form method="post" action="/admin/verify_user/{{ u[0] }}"><button class="btn btn-ok">Verify</button></form>
+      <form method="post" action="/admin/reject_user/{{ u[0] }}">
+        <input class="input" name="reason" placeholder="Reason (optional)" style="max-width:280px">
+        <button class="btn btn-danger">Reject</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Documents</h3>
+    <div class="grid grid-2">
+      {% if u[6] %}<div><div class="muted">Citizenship</div><img src="/{{ u[6] }}" style="width:100%;border-radius:10px"></div>{% endif %}
+      {% if u[7] %}<div><div class="muted">License</div><img src="/{{ u[7] }}" style="width:100%;border-radius:10px"></div>{% endif %}
+      {% if u[8] %}<div><div class="muted">Bluebook</div><img src="/{{ u[8] }}" style="width:100%;border-radius:10px"></div>{% endif %}
+      {% if u[9] %}<div><div class="muted">Ambulance</div><img src="/{{ u[9] }}" style="width:100%;border-radius:10px"></div>{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

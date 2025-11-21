@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Ambulance Booking System</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link href="/static/css/style.css" rel="stylesheet">
+  <style>
+    /* small nav polish */
+    .topbar .wrap { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .brand { font-weight:700; margin-right:8px; }
+    .pill { border-radius:999px; padding:6px 12px; }
+    .spacer { flex:1; }
+    .driver-toggle { display:flex; align-items:center; gap:6px; }
+    .driver-toggle form { display:inline; }
+    .driver-toggle .dot {
+      width:8px; height:8px; border-radius:999px; display:inline-block;
+      background:#999; vertical-align:middle;
+    }
+    .driver-toggle .dot.on { background:#10b981; } /* green */
+    .driver-toggle .dot.off { background:#ef4444; } /* red */
+    @media (max-width:720px){
+      .brand { flex-basis:100%; }
+    }
+    /* Responsive table → cards */
+.table.responsive { width:100%; border-collapse: collapse; }
+@media (max-width: 720px) {
+  .table.responsive thead { display: none; }
+  .table.responsive tr { display:block; margin-bottom:10px; border:1px solid var(--border,#e5e7eb); border-radius:12px; overflow:hidden; }
+  .table.responsive td { display:flex; justify-content:space-between; padding:8px 12px; border-bottom:1px dashed var(--border,#e5e7eb); }
+  .table.responsive td:last-child { border-bottom:none; }
+  .table.responsive td::before { content: attr(data-th); font-weight:600; margin-right:12px; }
+}
+
+  </style>
+</head>
+<body data-role="{{ session.get('role','') }}">
+  <nav class="topbar">
+    <div class="wrap">
+      <div class="brand">🚑 Premium+ Ambulance</div>
+
+      <a class="link pill" href="/home">Home</a>
+
+      {% if session.get('role') == 'user' %}
+        <a class="link pill" href="/book">Book</a>
+        <a class="link pill" href="/mybookings">My Bookings</a>
+        <a class="link pill" href="/dashboard/user">Dashboard</a>
+
+      {% elif session.get('role') == 'driver' %}
+        <a class="link pill" href="/dashboard/driver">Driver</a>
+        <a class="link pill" href="/driver/requests">Requests</a>
+        <a class="link pill" href="/driver/trips">Trips</a>
+
+        <!-- Inline Online/Offline toggle for drivers -->
+        <div class="driver-toggle">
+          <span class="dot {{ 'on' if session.get('driver_is_online') else 'off' }}"></span>
+          <span class="muted" style="font-size:0.9rem">
+            {{ 'Online' if session.get('driver_is_online') else 'Offline' }}
+          </span>
+          {% if session.get('driver_is_verified') %}
+            {% if session.get('driver_is_online') %}
+              <form method="post" action="/driver/set_status" style="margin:0">
+                <input type="hidden" name="state" value="offline">
+                <button class="link pill" type="submit" title="Go offline">Go Offline</button>
+              </form>
+            {% else %}
+              <form method="post" action="/driver/set_status" style="margin:0">
+                <input type="hidden" name="state" value="online">
+                <button class="link pill" type="submit" title="Go online">Go Online</button>
+              </form>
+            {% endif %}
+          {% else %}
+            <span class="badge" title="Waiting for admin approval">Not verified</span>
+          {% endif %}
+        </div>
+
+      {% elif session.get('role') == 'admin' %}
+        <a class="link pill" href="/dashboard/admin">Admin</a>
+      {% endif %}
+
+      <div class="spacer"></div>
+
+      {% if session.get('user_id') %}
+        <a class="link" href="/kyc">KYC</a>
+        <a class="link" href="/notifications" title="View all notifications">
+          <span class="bell">🔔</span>
+          <span id="notif-badge" class="badge" aria-live="polite" aria-label="unread notifications">0</span>
+        </a>
+        <span class="badge">Hi, {{ session.get('username','') }}</span>
+        <a class="link logout" href="/logout">Logout</a>
+      {% else %}
+        <a class="link pill" href="/signin">Sign in</a>
+        <a class="link pill" href="/signup">Sign up</a>
+      {% endif %}
+    </div>
+  </nav>
+
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <div class="container">
+        {% for m in messages %}
+          <div class="card" role="alert">{{ m }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <div class="container">
+    {% block content %}{% endblock %}
+    <div class="footer">© 2025 Premium+ • BCA Project</div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast" aria-live="polite" aria-atomic="true">
+    <div class="inner" id="toast-msg">Notification</div>
+  </div>
+
+  <script>
+  // Simple toast
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    const b = document.getElementById('toast-msg');
+    b.textContent = msg;
+    t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'), 3500);
+  }
+
+  // Poll unread count + show popup when increases
+  (function(){
+    const badge = document.getElementById('notif-badge');
+    if(!badge) return;
+    let lastCount = 0;
+    async function tick(){
+      try{
+        const r = await fetch('/api/notifications/unread_count');
+        const j = await r.json();
+        const c = j.count || 0;
+        if (c > lastCount) showToast('You have new notifications');
+        lastCount = c;
+        badge.textContent = c;
+      }catch(e){}
+    }
+    tick(); setInterval(tick, 10000);
+  })();
+
+  // Background location ping (lightweight) to keep suggestions/tracking useful
+  (function(){
+    const role = document.body.dataset.role;
+    if (!role || !navigator.geolocation) return;
+    function send(lat, lon, url){
+      const fd = new FormData(); fd.append('lat', lat); fd.append('lon', lon);
+      fetch(url, {method:'POST', body:fd}).catch(()=>{});
+    }
+    function onloc(p){
+      const lat=p.coords.latitude, lon=p.coords.longitude;
+      if (role==='user') send(lat,lon,'/update_user_location');
+      if (role==='driver') send(lat,lon,'/update_driver_location');
+    }
+    function start(){
+      navigator.geolocation.getCurrentPosition(onloc, ()=>{}, {enableHighAccuracy:true, maximumAge:5000, timeout:5000});
+    }
+    start(); setInterval(start, 15000);
+  })();
+  </script>
+</body>
+</html>

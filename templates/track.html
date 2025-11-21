@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+  <h2>Live Trip Tracking</h2>
+
+  <!-- Full-width map; directions & controls live inside the map as overlays -->
+  <div id="map" style="height: 75vh; width: 100%; border-radius: 12px; position: relative; overflow: hidden;"></div>
+</div>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<style>
+  /* Overlays inside the map */
+  .map-overlay {
+    position: absolute; z-index: 500; background: rgba(17,17,17,.85);
+    color: #fff; border-radius: 10px; padding: 10px 12px; box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    backdrop-filter: blur(4px);
+  }
+  .map-overlay h4 { margin: 0 0 6px 0; font-weight: 600; font-size: 14px; }
+  .map-overlay .muted { opacity: .85; font-size: 12px; }
+  .map-controls { top: 10px; left: 10px; display: grid; gap: 8px; }
+  .map-controls .btn {
+    font-size: 12px; padding: 6px 10px; background: #111; color: #fff; border-radius: 8px;
+    border: 1px solid #333; cursor: pointer;
+  }
+  .map-controls .btn-ghost { background: rgba(17,17,17,.65); }
+  .map-legend { bottom: 10px; left: 10px; }
+  .map-directions { top: 10px; right: 10px; max-width: 320px; width: calc(30vw); min-width: 220px; }
+  .map-directions.collapsed { max-height: 44px; overflow: hidden; }
+  .map-directions .steps { margin: 8px 0 0 0; padding: 0; list-style: none; max-height: 40vh; overflow: auto; }
+  .map-directions .steps li { font-size: 12px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.08); }
+  .badge-dot { display:inline-block; width:10px; height:10px; border-radius:999px; margin-right:6px; }
+</style>
+
+<script>
+const bookingId = {{ booking_id }};
+const map = L.map('map', { zoomControl: true });
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
+setTimeout(() => map.invalidateSize(), 350);
+map.setView([27.7, 85.33], 12);
+
+// Overlays (DOM) – injected into the map container
+const mapEl = document.getElementById('map');
+
+// Controls (left-top): follow, recenter
+const controls = document.createElement('div');
+controls.className = 'map-overlay map-controls';
+controls.innerHTML = `
+  <button id="followBtn" class="btn">Follow: ON</button>
+  <button id="recenterBtn" class="btn btn-ghost">Recenter</button>
+  <div class="muted">Updates ~5s</div>
+`;
+mapEl.appendChild(controls);
+
+// Legend (left-bottom)
+const legend = document.createElement('div');
+legend.className = 'map-overlay map-legend';
+legend.innerHTML = `
+  <div><span class="badge-dot" style="background:#10b981;"></span>User</div>
+  <div><span class="badge-dot" style="background:#2563eb;"></span>Driver</div>
+  <div><span class="badge-dot" style="background:#ef4444;"></span>Route</div>
+`;
+mapEl.appendChild(legend);
+
+// Directions panel (right-top)
+const panel = document.createElement('div');
+panel.className = 'map-overlay map-directions';
+panel.innerHTML = `
+  <h4>Directions <span id="collapseToggle" style="cursor:pointer; opacity:.8;">(collapse)</span></h4>
+  <div class="muted"><span id="eta">ETA: —</span> • <span id="dist">Distance: —</span></div>
+  <ol id="steps" class="steps"></ol>
+`;
+mapEl.appendChild(panel);
+
+const collapseToggle = panel.querySelector('#collapseToggle');
+collapseToggle.addEventListener('click', () => {
+  panel.classList.toggle('collapsed');
+  collapseToggle.textContent = panel.classList.contains('collapsed') ? '(expand)' : '(collapse)';
+});
+
+// Markers and layers
+let userMarker = null;
+let driverMarker = null;
+let routeLayer = null;
+let firstFitDone = false;
+let followMode = true;
+let lastUser = null, lastDriver = null;
+let userInteracted = false;
+
+// Marker styles
+const userIcon = L.divIcon({
+  html: '<div style="width:14px;height:14px;border-radius:999px;background:#10b981;border:2px solid #064e3b;"></div>',
+  className: '', iconSize: [18,18]
+});
+const driverIcon = L.divIcon({
+  html: '<div style="font-size:24px;line-height:24px;">🚑</div>',
+  className: '', iconSize: [24,24]
+});
+
+// Interaction detection (pause follow when user drags/zooms)
+['dragstart','zoomstart'].forEach(ev => map.on(ev, () => { userInteracted = true; }));
+setInterval(() => { userInteracted = false; }, 15000);
+
+// Buttons
+const followBtn = document.getElementById('followBtn');
+const recenterBtn = document.getElementById('recenterBtn');
+followBtn.onclick = () => {
+  followMode = !followMode;
+  followBtn.textContent = 'Follow: ' + (followMode ? 'ON' : 'OFF');
+  if (followMode) smartFit(true);
+};
+recenterBtn.onclick = () => smartFit(true);
+
+// Helpers
+function metersBetween(a, b) {
+  if (!a || !b) return Infinity;
+  const R = 6371000, toRad = d => d*Math.PI/180;
+  const dLat = toRad(b.lat - a.lat), dLon = toRad(b.lon - a.lon);
+  const lat1 = toRad(a.lat), lat2 = toRad(b.lat);
+  const s = Math.sin, c = Math.cos;
+  const h = s(dLat/2)**2 + c(lat1)*c(lat2)*s(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+function setOrMove(markerRef, lat, lon, options) {
+  if (!isFinite(lat) || !isFinite(lon)) return markerRef;
+  if (!markerRef) return L.marker([lat, lon], options).addTo(map);
+  markerRef.setLatLng([lat, lon]); return markerRef;
+}
+function smartFit(force=false) {
+  if ((!followMode || userInteracted) && !force) return;
+  const pts = [];
+  if (userMarker) pts.push(userMarker.getLatLng());
+  if (driverMarker) pts.push(driverMarker.getLatLng());
+  if (!pts.length) return;
+  map.fitBounds(L.latLngBounds(pts), { padding: [70, 70] });
+  firstFitDone = true;
+}
+function setETAandDistance(mins, km) {
+  document.getElementById('eta').textContent = `ETA: ${mins} min`;
+  document.getElementById('dist').textContent = `Distance: ${km} km`;
+}
+function renderSteps(legs){
+  const stepsEl = document.getElementById('steps');
+  stepsEl.innerHTML = '';
+  if (!legs || !legs[0] || !legs[0].steps) return;
+  for (const s of legs[0].steps) {
+    const li = document.createElement('li');
+    const road = s.name || 'road';
+    const d = (s.distance/1000).toFixed(2);
+    const man = (s.maneuver && s.maneuver.type) ? s.maneuver.type : 'Proceed';
+    li.textContent = `${man} on ${road} • ${d} km`;
+    stepsEl.appendChild(li);
+  }
+}
+
+async function drawRouteAndETA(user, driver) {
+  if (!user || !driver) return;
+  const url = `https://router.project-osrm.org/route/v1/driving/${driver.lon},${driver.lat};${user.lon},${user.lat}?overview=full&geometries=geojson&steps=true`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.routes || !data.routes[0]) return;
+
+    const route = data.routes[0];
+    const km = (route.distance / 1000).toFixed(1);
+    const mins = Math.round(route.duration / 60);
+    setETAandDistance(mins, km);
+    renderSteps(route.legs);
+
+    const geo = L.geoJSON(route.geometry, { style: { weight: 5, opacity: 0.9, color: '#ef4444' } });
+    if (routeLayer) map.removeLayer(routeLayer);
+    routeLayer = geo.addTo(map);
+
+  } catch (e) {
+    // ignore transient errors
+  }
+}
+
+async function refresh() {
+  try {
+    const r = await fetch(`/api/booking_positions/${bookingId}`);
+    if (r.status === 403) {
+      setETAandDistance('—', '—');
+      return;
+    }
+    const data = await r.json();
+    if (data.error) return;
+
+    const u = data.user, d = data.driver;
+
+    // Update markers
+    if (u && u.lat!=null && u.lon!=null) userMarker = setOrMove(userMarker, +u.lat, +u.lon, { title: 'User', icon: userIcon });
+    if (d && d.lat!=null && d.lon!=null) driverMarker = setOrMove(driverMarker, +d.lat, +d.lon, { title: 'Driver', icon: driverIcon });
+
+    // Fit view
+    smartFit();
+
+    // Route refresh only if positions moved noticeably or no route yet
+    const curUser   = u && isFinite(+u.lat) && isFinite(+u.lon) ? {lat:+u.lat, lon:+u.lon} : null;
+    const curDriver = d && isFinite(+d.lat) && isFinite(+d.lon) ? {lat:+d.lat, lon:+d.lon} : null;
+
+    const userMoved   = metersBetween(lastUser, curUser)   > 25;
+    const driverMoved = metersBetween(lastDriver, curDriver)> 25;
+
+    if (curUser) lastUser = curUser;
+    if (curDriver) lastDriver = curDriver;
+
+    if ((curUser && curDriver) && (userMoved || driverMoved || !routeLayer)) {
+      drawRouteAndETA(curUser, curDriver);
+    }
+
+    // If backend hides driver location while Pending, show waiting message
+    if (data.status === 'Pending') {
+      setETAandDistance('—', '—');
+    }
+  } catch (e) {
+    // ignore
+  }
+}
+
+// Kick off
+refresh();
+setInterval(refresh, 5000);
+</script>
+{% endblock %}
