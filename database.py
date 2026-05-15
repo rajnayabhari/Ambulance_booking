@@ -1,26 +1,42 @@
-# database.py — ensure PBKDF2 admin + unique review constraint
+import os
 import psycopg2
 from werkzeug.security import generate_password_hash
 
+# Fetch database configuration from environment variables
 DB_CFG = {
-    "database": "ambulance_db",
-    "user": "postgres",
-    "password": "@hybesty123",
-    "host": "127.0.0.1",
-    "port": 5432,
+    "database": os.environ.get("DB_NAME", "ambulance_db"),
+    "user": os.environ.get("DB_USER", "postgres"),
+    "password": os.environ.get("DB_PASSWORD", "@hybesty123"),
+    "host": os.environ.get("DB_HOST", "127.0.0.1"),
+    "port": os.environ.get("DB_PORT", "5432"),
 }
 
 def get_db_connection():
+    """Returns a connection to the configured PostgreSQL database."""
     return psycopg2.connect(**DB_CFG)
 
 def initialize_db():
-    admin_conn = psycopg2.connect(database="postgres", user=DB_CFG["user"], password=DB_CFG["password"], host=DB_CFG["host"], port=DB_CFG["port"])
-    admin_conn.autocommit = True
-    with admin_conn.cursor() as cur:
-        cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (DB_CFG["database"],))
-        if cur.fetchone() is None:
-            cur.execute(f"CREATE DATABASE {DB_CFG['database']}")
-    admin_conn.close()
+    """Initializes the database schema and seeds the admin user."""
+    # Note: In a containerized environment, the database itself is often created
+    # by the database container initialization scripts.
+    try:
+        # Attempt to create the database if it doesn't exist (requires superuser)
+        # We try this but don't fail if it's already there or if we lack permissions.
+        admin_conn = psycopg2.connect(
+            database="postgres",
+            user=DB_CFG["user"],
+            password=DB_CFG["password"],
+            host=DB_CFG["host"],
+            port=DB_CFG["port"]
+        )
+        admin_conn.autocommit = True
+        with admin_conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (DB_CFG["database"],))
+            if cur.fetchone() is None:
+                cur.execute(f"CREATE DATABASE {DB_CFG['database']}")
+        admin_conn.close()
+    except Exception as e:
+        print(f"ℹ️ Could not ensure database existence (might already exist): {e}")
 
     with get_db_connection() as conn:
         cur = conn.cursor()
@@ -109,20 +125,22 @@ def initialize_db():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications (user_id);")
 
         # Admin seed (PBKDF2)
-        admin_email = "raj@gmail.com"
-        pbkdf2_hash = generate_password_hash("raj123", method="pbkdf2:sha256", salt_length=16)
+        admin_email = os.environ.get("ADMIN_EMAIL", "raj@gmail.com")
+        admin_password = os.environ.get("ADMIN_PASSWORD", "raj123")
+        pbkdf2_hash = generate_password_hash(admin_password, method="pbkdf2:sha256", salt_length=16)
+        
         cur.execute("SELECT id FROM users WHERE LOWER(email)=LOWER(%s)", (admin_email,))
         row = cur.fetchone()
         if not row:
             cur.execute("""
                 INSERT INTO users (username, email, password, role, is_verified)
                 VALUES (%s, %s, %s, 'admin', TRUE)
-            """, ("raj", admin_email, pbkdf2_hash))
+            """, ("admin", admin_email, pbkdf2_hash))
         else:
             admin_id = row[0]
             cur.execute("""
                 UPDATE users
-                SET password=%s, role='admin', is_verified=TRUE, username='raj'
+                SET password=%s, role='admin', is_verified=TRUE
                 WHERE id=%s
             """, (pbkdf2_hash, admin_id))
         conn.commit()

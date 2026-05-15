@@ -1,0 +1,30 @@
+{
+    # Global options
+    email your-email@example.com
+}
+
+{$DOMAIN} {
+    # Reverse proxy to the app service on port 5000
+    reverse_proxy app:5000
+
+    # Security headers
+    header {
+        # Disable FLoC
+        Permissions-Policy "interest-cohort=()"
+        # Enable HSTS
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        # Prevent XSS
+        X-XSS-Protection "1; mode=block"
+        # Prevent MIME sniffing
+        X-Content-Type-Options "nosniff"
+        # Prevent clickjacking
+        X-Frame-Options "DENY"
+        # Content Security Policy (Adjust based on your app's needs)
+        # Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';"
+    }
+
+    # Logging
+    log {
+        output file /data/access.log
+    }
+}

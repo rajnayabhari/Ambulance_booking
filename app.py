@@ -87,6 +87,19 @@ def refresh_identity_flags():
 # ------------------------------
 # Auth
 # ------------------------------
+# Health check for container orchestrators
+@app.route("/health")
+def health():
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT 1")
+        cur.close()
+        conn.close()
+        return jsonify({"status": "healthy", "database": "connected"}), 200
+    except Exception as e:
+        return jsonify({"status": "unhealthy", "error": str(e)}), 500
+
 @app.route("/")
 def root(): return redirect("/home")
 
